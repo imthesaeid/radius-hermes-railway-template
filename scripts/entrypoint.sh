@@ -302,8 +302,30 @@ model = cfg["model"]
 
 if os.environ.get("CUSTOM_BASE_URL") and os.environ.get("CUSTOM_API_KEY"):
     model["provider"] = "custom"
-    model["base_url"] = os.environ["CUSTOM_BASE_URL"].rstrip("/")
+    model["base_url"] = os.environ.get("CUSTOM_BASE_URL").rstrip("/")
     model["api_mode"] = "chat_completions"
+    # Also surface the endpoint as a custom_providers entry (with the key) so
+    # the /model picker discovers and lists ALL models behind it — the bare
+    # model.base_url row only ever shows the currently-selected model.
+    providers = cfg.get("custom_providers")
+    if not isinstance(providers, list):
+        providers = []
+    providers = [
+        e for e in providers
+        if not (isinstance(e, dict)
+                and str(e.get("base_url", "")).rstrip("/") == model["base_url"])
+    ]
+    entry = {
+        "name": "9router",
+        "base_url": model["base_url"],
+        "api_key": os.environ.get("CUSTOM_API_KEY"),
+        "api_mode": "chat_completions",
+        "discover_models": True,
+    }
+    if os.environ.get("LLM_MODEL_VALUE"):
+        entry["model"] = os.environ["LLM_MODEL_VALUE"]
+    providers.append(entry)
+    cfg["custom_providers"] = providers
 if os.environ.get("LLM_MODEL_VALUE"):
     model["default"] = os.environ["LLM_MODEL_VALUE"]
 
