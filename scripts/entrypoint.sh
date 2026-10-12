@@ -277,14 +277,45 @@ PYEOF
   fi
 fi
 
-# Ensure model is set in config.yaml (handles existing installs and model changes)
-if [[ -n "${LLM_MODEL:-}" ]]; then
-  if grep -q "^model:" "$CONFIG_FILE" 2>/dev/null; then
-    sed -i "s|^model:.*|model: ${LLM_MODEL}|" "$CONFIG_FILE"
-  else
-    sed -i "1s|^|model: ${LLM_MODEL}\n|" "$CONFIG_FILE"
+# Sync model/provider with the environment on EVERY boot, so restarts always come
+# back with the same initial settings (Render's free tier has an ephemeral
+# filesystem — /data and config.yaml are recreated each boot; env vars survive).
+# Custom OpenAI-compatible endpoint (e.g. a self-hosted 9router) is pinned as
+# provider `custom` when both OPENAI_BASE_URL and OPENAI_API_KEY are set.
+if [[ -n "${LLM_MODEL:-}" ]] || { [[ -n "${OPENAI_BASE_URL:-}" ]] && [[ -n "${OPENAI_API_KEY:-}" ]]; }; then
+  if ! CONFIG_FILE="$CONFIG_FILE" LLM_MODEL_VALUE="${LLM_MODEL:-}" \
+    CUSTOM_BASE_URL="${OPENAI_BASE_URL:-}" CUSTOM_API_KEY="${OPENAI_API_KEY:-}" \
+    python3 - <<'PYEOF'
+import os, yaml
+
+path = os.environ["CONFIG_FILE"]
+try:
+    with open(path) as f:
+        cfg = yaml.safe_load(f) or {}
+except Exception:
+    cfg = {}
+
+model = cfg.get("model")
+if not isinstance(model, dict):
+    cfg["model"] = {"default": model} if model else {}
+model = cfg["model"]
+
+if os.environ.get("CUSTOM_BASE_URL") and os.environ.get("CUSTOM_API_KEY"):
+    model["provider"] = "custom"
+    model["base_url"] = os.environ["CUSTOM_BASE_URL"].rstrip("/")
+    model["api_mode"] = "chat_completions"
+if os.environ.get("LLM_MODEL_VALUE"):
+    model["default"] = os.environ["LLM_MODEL_VALUE"]
+
+with open(path, "w") as f:
+    yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+print("[bootstrap] model section synced with environment.")
+PYEOF
+  then
+    echo "[bootstrap] WARNING: Could not sync model settings in config.yaml." >&2
   fi
 fi
+
 
 if [[ ! -f "$INIT_MARKER" ]]; then
   date -u +"%Y-%m-%dT%H:%M:%SZ" > "$INIT_MARKER"
