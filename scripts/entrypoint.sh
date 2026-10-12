@@ -301,12 +301,15 @@ if not isinstance(model, dict):
 model = cfg["model"]
 
 if os.environ.get("CUSTOM_BASE_URL") and os.environ.get("CUSTOM_API_KEY"):
-    model["provider"] = "custom"
+    # Named custom provider (`custom:9router`): the runtime then reads base_url,
+    # api_key and api_mode from the custom_providers entry below. The anonymous
+    # `custom` route does NOT carry the entry's key into agent inference requests
+    # (401s that never show up in 9router's usage log), so never use it here.
+    model["provider"] = "custom:9router"
     model["base_url"] = os.environ.get("CUSTOM_BASE_URL").rstrip("/")
     model["api_mode"] = "chat_completions"
-    # Also surface the endpoint as a custom_providers entry (with the key) so
-    # the /model picker discovers and lists ALL models behind it — the bare
-    # model.base_url row only ever shows the currently-selected model.
+    # Surface the endpoint as a custom_providers entry (with the key) so both the
+    # /model picker AND inference discover and use ALL models behind it.
     providers = cfg.get("custom_providers")
     if not isinstance(providers, list):
         providers = []
