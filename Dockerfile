@@ -94,5 +94,11 @@ COPY README.md /app/README.md
 COPY skills /app/skills
 COPY plugins /app/plugins
 
+# Restore /data/.hermes from a private GitHub state repo on boot and keep a
+# rolling backup (Render Free wipes the disk on every restart/spin-down).
+# Needs GH_STATE_REPO + GH_TOKEN env vars; see scripts/boot.sh header.
+COPY scripts/boot.sh /app/boot.sh
+RUN chmod +x /app/boot.sh
+
 ENTRYPOINT ["tini", "--"]
-CMD ["/app/scripts/entrypoint.sh"]
+CMD ["/app/boot.sh"]
