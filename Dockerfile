@@ -16,6 +16,9 @@ ENV PATH="/opt/venv/bin:${PATH}"
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -e "/opt/hermes-agent[messaging,cron,cli,pty]"
+# hermes core tools (tools/terminal_tool, tools.delegate_tool) import psutil when the
+# tool registry loads; without it every agent turn dies with ModuleNotFoundError.
+RUN pip install --no-cache-dir psutil
 RUN pip install --no-cache-dir ruamel.yaml
 RUN pip install --no-cache-dir ruamel.yaml rich truststore
 
